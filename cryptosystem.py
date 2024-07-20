@@ -179,47 +179,31 @@ class Cryptosystem:
             return None
 
 text = input(">")
-#bitarray_text = bitarray()
+print("Message: ", text, '\n')
 
-#bitarray_text.frombytes(text.encode('utf-8'))
 cryptosystem = Cryptosystem(text)
 
-#cryptosystem = Cryptosystem(sec_param=len(bitarray_text))
-
 print("n: ", cryptosystem.n)
+
 cryptosystem.gen_keys()
-
-print("Message: ", text)
-print()
-
-
 
 print("---- Encrypt/Decrypt test")
 encrypted = cryptosystem.encrypt()
-
 decrypted = cryptosystem.decrypt(encrypted)
-#decrypted_text = decrypted.tobytes().decode('utf-8')
-
 assert(text == decrypted)
 
 
 print("---- Oracle test")
 test_seed = create_bitarray(cryptosystem.sec_param)
 oracle = oracleH(test_seed, cryptosystem.n, cryptosystem.h)
-#print(oracle[0].to01())
 oracle1 = oracleH(test_seed, cryptosystem.n, cryptosystem.h)
-#print(oracle1[0].to01())
 assert(oracle == oracle1)
-#print("oracle == oracle1: ", oracle == oracle1)
-#print()
+
 
 print("---- Encaps/Decaps test")
 cyphertext, encaps_key = cryptosystem.encapsulate()
-#print("Encaps key: ", encaps_key.to01())
 decaps_key = cryptosystem.decapsulate(cyphertext)
-#print("Decaps key: ", decaps_key.to01())
-
-#print("Encaps key == Decaps key: ", encaps_key == decaps_key)
 assert(encaps_key == decaps_key)
+
 
 print("\nFINISHED CORRECTLY")
