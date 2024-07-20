@@ -52,35 +52,37 @@ def oracleH(seed, n, h):
     H2.setall(0)
     H3.setall(0)
 
-    # randbelow from secrets cannot be seeded
+    # randbelow from secure cannot be seeded
     random_generator = random.Random()
     random_generator.seed(s1.to01())
     for i in range(len(seed)):
         H0.append(random_generator.randint(0, 1))
 
-    #use different seeds for each output, to make them independent
+    #use different seeds for eac «h uotput, to make them independent
     for H,s in ((H1,s2),(H2,s3),(H3,s4)):
         weight = h
         random_generator = random.Random()
         random_generator.seed(s.to01())
         while weight > 0:
             index = random_generator.randint(0, n - 1)
-
             while H[index] == 1:
                 index = random_generator.randint(0, n - 1)
-
             H[index] = 1
-
             weight -= 1
 
     return H0, H1, H2, H3
 
 
-
+# Necessary create an instance of the class for each text to be encrypted/decrypted
+# Because parameters F and G need sec_parm value that depends on the text
 class Cryptosystem:
 
-    def __init__(self, sec_param = 256):
-        self.sec_param = sec_param
+    def __init__(self, text):
+        bitarray_text = bitarray()
+        bitarray_text.frombytes(text.encode('utf-8'))
+
+        self.message = bitarray_text
+        self.sec_param = len(bitarray_text)
 
         #security bound
         min = 10*self.sec_param*self.sec_param
@@ -93,10 +95,13 @@ class Cryptosystem:
         self.R = create_bitarray(self.n)
         self.F = create_bitarray(self.n, ham_dist=self.sec_param)
         self.G = create_bitarray(self.n, ham_dist=self.sec_param)
-        self.h = self.sec_param
+        self.h = 2
+
 
 
     def encode(self, m):
+        #if len(m)*8<sec_param:
+            #m = add_padding(m,sec_param)
         N = self.n//self.sec_param
         expanded_bit_array = bitarray()
         for bit in m:
@@ -106,14 +111,14 @@ class Cryptosystem:
         expanded_bit_array.extend([b[0]]*(self.n-N*self.sec_param))
         return expanded_bit_array
 
-
     def gen_keys(self):
         self.SK = self.F
         self.PK = (self.R, (self.R&self.F)|self.G)
         return self.PK, self.SK
 
-    def encrypt(self, text):
-        txt = self.encode(text)
+    def encrypt(self):
+
+        txt = self.encode(self.message)
         R,T = self.PK
         A = create_bitarray(self.n, ham_dist=self.sec_param)
         B1 = create_bitarray(self.n, ham_dist=self.sec_param)
@@ -141,14 +146,15 @@ class Cryptosystem:
 
 
     def decrypt(self, encrypted):
-        C1,C2 = encrypted
-        cyphertext = (self.SK&C1)^C2
-        return self.decode(cyphertext)
+        C,C1 = encrypted
+        cyphertext = (self.SK&C)^C1
+        decoded = self.decode(cyphertext)
+        return decoded.tobytes().decode('utf-8')
 
 
-    # input: PK (do parceiro)
     def encapsulate(self):
         K = create_bitarray(self.sec_param) # random bit array
+
         S, A, B1, B2 = oracleH(K, self.n, self.h)
         R,T = self.PK
         encode = self.encode(K)
@@ -156,56 +162,64 @@ class Cryptosystem:
         C2 = encode^(A&T|B2)
         return (C1, C2), S
 
-
     def decapsulate(self, cyphertext):
         C1, C2 = cyphertext
-        R,T = self.PK # PK (do proprio)
+        R,T = self.PK
         K_prime = self.decode((self.SK&C1)^C2)
-        S_prime, A_prime, B1_prime, B2_prime = oracleH(K_prime, self.n, self.h)
+
+        key, A_prime, B1_prime, B2_prime = oracleH(K_prime, self.n, self.h)
         encode = self.encode(K_prime)
         C1_prime = (A_prime&R)|B1_prime
         C2_prime = encode^(A_prime&T|B2_prime)
         C_prime = (C1_prime, C2_prime)
+
         if cyphertext == C_prime:
-            return S_prime
+            return key
         else:
             return None
 
+text = input(">")
+#bitarray_text = bitarray()
 
+#bitarray_text.frombytes(text.encode('utf-8'))
+cryptosystem = Cryptosystem(text)
 
-cryptosystem = Cryptosystem(sec_param=256)
+#cryptosystem = Cryptosystem(sec_param=len(bitarray_text))
 
 print("n: ", cryptosystem.n)
 cryptosystem.gen_keys()
 
-text = 'O rato roeu a rolha do rei da Russia.'
-mensagem = bitarray()
-mensagem.frombytes(text.encode('utf-8'))
-
-print("-------- Encrypt/Decrypt test -------")
-encrypted = cryptosystem.encrypt(mensagem)
-decrypted = cryptosystem.decrypt(encrypted)
-decrypted_text = decrypted.tobytes().decode('utf-8')
-print("text: ", text)
-print("text in bits:", mensagem.to01())
-print("decrypted text in bits:", decrypted.to01())
-print("decrypted text: ", decrypted_text)
-print("text in bits == decrypted text in bits: ", mensagem == decrypted)
-print("text == decrypted text: ", text == decrypted_text)
+print("Message: ", text)
 print()
 
-print("-------- Oracle test -------")
+
+
+print("---- Encrypt/Decrypt test")
+encrypted = cryptosystem.encrypt()
+
+decrypted = cryptosystem.decrypt(encrypted)
+#decrypted_text = decrypted.tobytes().decode('utf-8')
+
+assert(text == decrypted)
+
+
+print("---- Oracle test")
 test_seed = create_bitarray(cryptosystem.sec_param)
 oracle = oracleH(test_seed, cryptosystem.n, cryptosystem.h)
-print(oracle[0].to01())
+#print(oracle[0].to01())
 oracle1 = oracleH(test_seed, cryptosystem.n, cryptosystem.h)
-print(oracle1[0].to01())
-print("oracle == oracle1: ", oracle == oracle1)
-print()
+#print(oracle1[0].to01())
+assert(oracle == oracle1)
+#print("oracle == oracle1: ", oracle == oracle1)
+#print()
 
-print("-------- Encaps/Decaps test -------")
+print("---- Encaps/Decaps test")
 cyphertext, encaps_key = cryptosystem.encapsulate()
-print("Encaps key: ", encaps_key.to01())
+#print("Encaps key: ", encaps_key.to01())
 decaps_key = cryptosystem.decapsulate(cyphertext)
-print("Decaps key: ", decaps_key.to01())
-print("Encaps key == Decaps key: ", encaps_key == decaps_key)
+#print("Decaps key: ", decaps_key.to01())
+
+#print("Encaps key == Decaps key: ", encaps_key == decaps_key)
+assert(encaps_key == decaps_key)
+
+print("\nFINISHED CORRECTLY")
